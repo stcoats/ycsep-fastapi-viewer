@@ -1,14 +1,57 @@
-from fastapi import FastAPI
-from fastapi.responses import FileResponse
+from fastapi import FastAPI, Query, HTTPException
+from fastapi.responses import StreamingResponse, FileResponse
+from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
-import os
+from app.duckdb_utils import get_connection
+import pandas as pd
+import io
 
 app = FastAPI()
 
-# Make absolutely sure this matches the internal container path
+# CORS
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
+# Static files and index.html
 app.mount("/static", StaticFiles(directory="app/static"), name="static")
 
 @app.get("/")
-def serve_index():
-    index_path = os.path.join("app", "static", "index.html")
-    return FileResponse(index_path, media_type="text/html")
+def read_index():
+    return FileResponse("app/static/index.html")
+
+# DB connection
+con = get_connection()
+
+@app.get("/search")
+def search(text: str = Query("")):
+    query = text.replace("'", "''")
+    df = con.execute(
+        f"""
+        SELECT id, channel, video_id, speaker, start_time, end_time, upload_date, text, pos_tags
+        FROM data
+        WHERE text ILIKE '%{query}%'
+        LIMIT 100
+        """
+    ).df()
+    return df.to_dict(orient="records")
+
+@app.get("/audio/{id}")
+def get_audio(id: str):
+    row = con.execute(f"SELECT audio FROM data WHERE id = '{id}'").fetchone()
+    if not row:
+        raise HTTPException(status_code=404, detail="Audio not found")
+    audio_bytes = row[0]
+    return StreamingResponse(io.BytesIO(audio_bytes), media_type="audio/mpeg")
+
+@app.get("/data")
+def get_all_data():
+    df = con.execute("""
+        SELECT id, channel, video_id, speaker, start_time, end_time, upload_date, text, pos_tags
+        FROM data
+        LIMIT 500
+    """).df()
+    return df.to_dict(orient="records")
