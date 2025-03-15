@@ -3,7 +3,8 @@ title: Ycsep Fastapi Viewer
 emoji: 👀
 colorFrom: pink
 colorTo: yellow
-sdk: static
+sdk: docker
+app_file: app/main.py
 pinned: false
 ---
 
