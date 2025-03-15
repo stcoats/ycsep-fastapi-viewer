@@ -9,7 +9,6 @@ RUN pip install --no-cache-dir -r requirements.txt
 # Copy all app files and db assembly script
 COPY app/ app/
 COPY assemble_db.sh .
-COPY db_parts/ db_parts/
 
 # Make script executable
 RUN chmod +x assemble_db.sh
