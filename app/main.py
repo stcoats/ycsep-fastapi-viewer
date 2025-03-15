@@ -1,64 +1,34 @@
-from fastapi import FastAPI, Request, Query
-from fastapi.responses import HTMLResponse
-from fastapi.middleware.cors import CORSMiddleware
-from fastapi.templating import Jinja2Templates
+from fastapi import FastAPI, Query, HTTPException
+from fastapi.responses import StreamingResponse
 from app.duckdb_utils import get_connection
-import math
+import pandas as pd
+import io
 
 app = FastAPI()
 
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=["*"],
-    allow_methods=["*"],
-    allow_headers=["*"],
-)
-
-# Setup Jinja2 (templates in ./templates)
-templates = Jinja2Templates(directory="app/templates")
-
 con = get_connection()
 
-@app.get("/", response_class=HTMLResponse)
-def search_page(request: Request, q: str = "", page: int = 1, size: int = 50):
-    safe_q = q.replace("'", "''")
-    where_clause = ""
-    if safe_q.strip():
-        where_clause = f"WHERE text ILIKE '%{safe_q}%'"
+@app.get("/search")
+def search(q: str = Query("")):
+    """Return up to 100 rows from data table matching substring `q` in `text`."""
+    safe = q.replace("'", "''")
+    df = con.execute(
+        f"""
+        SELECT id, channel, video_id, speaker, start_time, end_time, upload_date, text, pos_tags
+        FROM data
+        WHERE text ILIKE '%{safe}%'
+        LIMIT 100
+        """
+    ).df()
+    return df.to_dict(orient="records")
 
-    # Count total rows for pagination
-    total_query = f"SELECT COUNT(*) FROM data {where_clause}"
-    total_rows = con.execute(total_query).fetchone()[0]
-
-    # Figure out offset
-    offset = (page - 1) * size
-
-    # Grab subset
-    query = f"""
-    SELECT id, speaker, channel, video_id, start_time, end_time, text
-    FROM data
-    {where_clause}
-    ORDER BY id
-    LIMIT {size} OFFSET {offset}
+@app.get("/audio/{id}")
+def get_audio(id: str):
     """
-    rows = con.execute(query).fetchall()
-    cols = con.execute(query).description
-
-    # Convert rows into a list of dicts
-    col_names = [c[0] for c in cols]
-    row_dicts = []
-    for r in rows:
-        row_dicts.append(dict(zip(col_names, r)))
-
-    total_pages = math.ceil(total_rows / size)
-
-    return templates.TemplateResponse(
-        "table.html",
-        {
-            "request": request,
-            "rows": row_dicts,
-            "page": page,
-            "total_pages": total_pages,
-            "query": q,
-        },
-    )
+    Stream MP3 audio from the `audio` BLOB column (if present).
+    """
+    row = con.execute(f"SELECT audio FROM data WHERE id = '{id}'").fetchone()
+    if not row:
+        raise HTTPException(status_code=404, detail="Audio not found")
+    audio_bytes = row[0]
+    return StreamingResponse(io.BytesIO(audio_bytes), media_type="audio/mpeg")
