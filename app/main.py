@@ -1,5 +1,5 @@
 from fastapi import FastAPI, Query, HTTPException
-from fastapi.responses import StreamingResponse, FileResponse
+from fastapi.responses import StreamingResponse
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 from app.duckdb_utils import get_connection
@@ -15,13 +15,8 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# Serve HTML frontend from static/index.html
-app.mount("/static", StaticFiles(directory="app/static"), name="static")
-
-@app.get("/")
-def read_index():
-    return FileResponse("/app/app/static/index.html")
-
+# Serve frontend automatically
+app.mount("/", StaticFiles(directory="app/static", html=True), name="static")
 
 con = get_connection()
 
