@@ -49,9 +49,14 @@ def get_audio(id: str):
 
 @app.get("/data")
 def get_all_data():
-    df = con.execute("""
-        SELECT id, channel, video_id, speaker, start_time, end_time, upload_date, text, pos_tags
-        FROM data
-        LIMIT 500
-    """).df()
-    return df.to_dict(orient="records")
+    try:
+        df = con.execute("""
+            SELECT id, channel, video_id, speaker, start_time, end_time, upload_date, text, pos_tags
+            FROM data
+            LIMIT 500
+        """).df()
+        return df.to_dict(orient="records")
+    except Exception as e:
+        print("ERROR in /data:", str(e))
+        raise HTTPException(status_code=503, detail=str(e))
+
