@@ -4,85 +4,98 @@
   <meta charset="UTF-8">
   <title>YCSEP Dataset Viewer</title>
   <style>
-    table {
-      width: 100%;
-      border-collapse: collapse;
-    }
-    th, td {
-      border: 1px solid #ccc;
-      padding: 6px;
-      text-align: left;
-    }
-    th {
+    body { font-family: Arial, sans-serif; padding: 20px; }
+    table { width: 100%; border-collapse: collapse; margin-top: 10px; }
+    th, td { border: 1px solid #ccc; padding: 6px; text-align: left; }
+    th { cursor: pointer; background-color: #f2f2f2; }
+    .pagination { margin-top: 15px; }
+    .pagination button {
+      padding: 5px 10px;
+      margin: 0 3px;
       cursor: pointer;
     }
   </style>
 </head>
 <body>
   <h1>YCSEP Dataset Viewer</h1>
+
+  <label>Search text: <input type="text" id="searchBox" /></label>
+  <button onclick="loadPage(1)">Search</button>
+
   <table id="dataTable">
     <thead>
       <tr>
-        <th onclick="sortTable(0)">ID</th>
-        <th onclick="sortTable(1)">Channel</th>
-        <th onclick="sortTable(2)">Video ID</th>
-        <th onclick="sortTable(3)">Speaker</th>
-        <th onclick="sortTable(4)">Start</th>
-        <th onclick="sortTable(5)">End</th>
-        <th onclick="sortTable(6)">Text</th>
+        <th onclick="sortBy('id')">ID</th>
+        <th onclick="sortBy('channel')">Channel</th>
+        <th onclick="sortBy('video_id')">Video ID</th>
+        <th onclick="sortBy('speaker')">Speaker</th>
+        <th onclick="sortBy('start_time')">Start</th>
+        <th onclick="sortBy('end_time')">End</th>
+        <th onclick="sortBy('text')">Text</th>
       </tr>
     </thead>
     <tbody></tbody>
   </table>
 
-  <script>
-    fetch("/data")
-      .then(response => response.json())
-      .then(data => {
-        const tbody = document.querySelector("#dataTable tbody");
-        data.forEach(row => {
-          const tr = document.createElement("tr");
-          tr.innerHTML = `
-            <td>${row.id}</td>
-            <td>${row.channel}</td>
-            <td>${row.video_id}</td>
-            <td>${row.speaker}</td>
-            <td>${row.start_time}</td>
-            <td>${row.end_time}</td>
-            <td>${row.text}</td>
-          `;
-          tbody.appendChild(tr);
-        });
-      });
+  <div class="pagination" id="paginationControls"></div>
 
-    function sortTable(n) {
-      const table = document.getElementById("dataTable");
-      let switching = true, dir = "asc", switchcount = 0;
-      while (switching) {
-        switching = false;
-        const rows = table.rows;
-        for (let i = 1; i < rows.length - 1; i++) {
-          let shouldSwitch = false;
-          let x = rows[i].getElementsByTagName("TD")[n];
-          let y = rows[i + 1].getElementsByTagName("TD")[n];
-          if ((dir == "asc" && x.innerHTML.toLowerCase() > y.innerHTML.toLowerCase()) ||
-              (dir == "desc" && x.innerHTML.toLowerCase() < y.innerHTML.toLowerCase())) {
-            shouldSwitch = true;
-            break;
-          }
-        }
-        if (shouldSwitch) {
-          rows[i].parentNode.insertBefore(rows[i + 1], rows[i]);
-          switching = true;
-          switchcount++;
-        } else {
-          if (switchcount == 0 && dir == "asc") {
-            dir = "desc";
-            switching = true;
-          }
-        }
+  <script>
+    let currentPage = 1;
+    let sortColumn = '';
+    let sortDir = 'asc';
+    const pageSize = 100;
+
+    function loadPage(page) {
+      const searchText = document.getElementById('searchBox').value;
+      fetch(`/data?page=${page}&size=${pageSize}&sort=${sortColumn}&dir=${sortDir}&text=${encodeURIComponent(searchText)}`)
+        .then(res => res.json())
+        .then(result => {
+          const data = result.data;
+          const totalPages = Math.ceil(result.total / pageSize);
+          const tbody = document.querySelector("#dataTable tbody");
+          tbody.innerHTML = "";
+          data.forEach(row => {
+            const tr = document.createElement("tr");
+            tr.innerHTML = `
+              <td>${row.id}</td>
+              <td>${row.channel}</td>
+              <td>${row.video_id}</td>
+              <td>${row.speaker}</td>
+              <td>${row.start_time}</td>
+              <td>${row.end_time}</td>
+              <td>${row.text}</td>
+            `;
+            tbody.appendChild(tr);
+          });
+          currentPage = page;
+          renderPaginationControls(totalPages);
+        });
+    }
+
+    function renderPaginationControls(totalPages) {
+      const controls = document.getElementById("paginationControls");
+      controls.innerHTML = "";
+      for (let i = 1; i <= totalPages; i++) {
+        const btn = document.createElement("button");
+        btn.textContent = i;
+        if (i === currentPage) btn.style.fontWeight = 'bold';
+        btn.onclick = () => loadPage(i);
+        controls.appendChild(btn);
       }
     }
+
+    function sortBy(column) {
+      if (sortColumn === column) {
+        sortDir = sortDir === 'asc' ? 'desc' : 'asc';
+      } else {
+        sortColumn = column;
+        sortDir = 'asc';
+      }
+      loadPage(1);
+    }
+
+    // Initial load
+    loadPage(1);
   </script>
 </body>
 </html>
