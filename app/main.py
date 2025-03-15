@@ -5,7 +5,6 @@ from fastapi.staticfiles import StaticFiles
 from app.duckdb_utils import get_connection
 import pandas as pd
 import io
-import os
 
 app = FastAPI()
 
@@ -16,15 +15,13 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# Mount static files
+# Serve HTML frontend
 app.mount("/static", StaticFiles(directory="app/static"), name="static")
 
-# Serve HTML from root path
 @app.get("/")
 def read_index():
     return FileResponse("app/static/index.html")
 
-# Database connection
 con = get_connection()
 
 @app.get("/search")
@@ -48,10 +45,35 @@ def get_audio(id: str):
     audio_bytes = row[0]
     return StreamingResponse(io.BytesIO(audio_bytes), media_type="audio/mpeg")
 
+# ✅ NEW paginated/sortable data endpoint
 @app.get("/data")
-def get_all_data():
-    df = con.execute("""
-        SELECT id, channel, video_id, speaker, start_time, end_time, upload_date, text, pos_tags
+def get_paginated_data(
+    page: int = Query(1, ge=1),
+    size: int = Query(100, ge=1, le=1000),
+    sort: str = Query("id"),
+    dir: str = Query("asc"),
+    text: str = Query("")
+):
+    allowed_sort_columns = ["id", "channel", "video_id", "speaker", "start_time", "end_time", "text"]
+    if sort not in allowed_sort_columns:
+        raise HTTPException(status_code=400, detail="Invalid sort column")
+    if dir not in ["asc", "desc"]:
+        raise HTTPException(status_code=400, detail="Invalid sort direction")
+
+    offset = (page - 1) * size
+    text_filter = f"WHERE text ILIKE '%{text.replace("'", "''")}%' " if text else ""
+    
+    query = f"""
+        SELECT id, channel, video_id, speaker, start_time, end_time, text
         FROM data
-    """).df()
-    return df.to_dict(orient="records")
+        {text_filter}
+        ORDER BY {sort} {dir}
+        LIMIT {size} OFFSET {offset}
+    """
+    df = con.execute(query).df()
+
+    # Get total count for pagination
+    count_query = f"SELECT COUNT(*) FROM data {text_filter}"
+    total = con.execute(count_query).fetchone()[0]
+
+    return {"total": total, "data": df.to_dict(orient="records")}
