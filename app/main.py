@@ -1,5 +1,5 @@
 from fastapi import FastAPI, Query, HTTPException
-from fastapi.responses import StreamingResponse, FileResponse
+from fastapi.responses import FileResponse, StreamingResponse
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 from app.duckdb_utils import get_connection
@@ -8,6 +8,7 @@ import io
 
 app = FastAPI()
 
+# CORS
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
@@ -15,13 +16,16 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# Serve HTML frontend
+# Serve static files
 app.mount("/static", StaticFiles(directory="app/static"), name="static")
 
+# Serve index.html on "/" and "/index.html"
 @app.get("/")
-def read_index():
+@app.get("/index.html")
+def get_index():
     return FileResponse("app/static/index.html")
 
+# DuckDB connection
 con = get_connection()
 
 @app.get("/search")
@@ -42,38 +46,11 @@ def get_audio(id: str):
     row = con.execute(f"SELECT audio FROM data WHERE id = '{id}'").fetchone()
     if not row:
         raise HTTPException(status_code=404, detail="Audio not found")
-    audio_bytes = row[0]
-    return StreamingResponse(io.BytesIO(audio_bytes), media_type="audio/mpeg")
+    return StreamingResponse(io.BytesIO(row[0]), media_type="audio/mpeg")
 
-# ✅ NEW paginated/sortable data endpoint
 @app.get("/data")
-def get_paginated_data(
-    page: int = Query(1, ge=1),
-    size: int = Query(100, ge=1, le=1000),
-    sort: str = Query("id"),
-    dir: str = Query("asc"),
-    text: str = Query("")
-):
-    allowed_sort_columns = ["id", "channel", "video_id", "speaker", "start_time", "end_time", "text"]
-    if sort not in allowed_sort_columns:
-        raise HTTPException(status_code=400, detail="Invalid sort column")
-    if dir not in ["asc", "desc"]:
-        raise HTTPException(status_code=400, detail="Invalid sort direction")
-
-    offset = (page - 1) * size
-    text_filter = f"WHERE text ILIKE '%{text.replace("'", "''")}%' " if text else ""
-    
-    query = f"""
-        SELECT id, channel, video_id, speaker, start_time, end_time, text
-        FROM data
-        {text_filter}
-        ORDER BY {sort} {dir}
-        LIMIT {size} OFFSET {offset}
-    """
-    df = con.execute(query).df()
-
-    # Get total count for pagination
-    count_query = f"SELECT COUNT(*) FROM data {text_filter}"
-    total = con.execute(count_query).fetchone()[0]
-
-    return {"total": total, "data": df.to_dict(orient="records")}
+def get_all_data():
+    df = con.execute(
+        "SELECT id, channel, video_id, speaker, start_time, end_time, upload_date, text, pos_tags FROM data"
+    ).df()
+    return df.to_dict(orient="records")
