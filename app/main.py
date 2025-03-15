@@ -1,10 +1,11 @@
 from fastapi import FastAPI, Query, HTTPException
-from fastapi.responses import StreamingResponse
+from fastapi.responses import StreamingResponse, FileResponse
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 from app.duckdb_utils import get_connection
 import pandas as pd
 import io
+import os
 
 app = FastAPI()
 
@@ -15,9 +16,15 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# Serve frontend automatically
-app.mount("/", StaticFiles(directory="app/static", html=True), name="static")
+# Mount static files
+app.mount("/static", StaticFiles(directory="app/static"), name="static")
 
+# Serve HTML from root path
+@app.get("/")
+def read_index():
+    return FileResponse("app/static/index.html")
+
+# Database connection
 con = get_connection()
 
 @app.get("/search")
@@ -43,5 +50,8 @@ def get_audio(id: str):
 
 @app.get("/data")
 def get_all_data():
-    df = con.execute("SELECT id, channel, video_id, speaker, start_time, end_time, upload_date, text, pos_tags FROM data").df()
+    df = con.execute("""
+        SELECT id, channel, video_id, speaker, start_time, end_time, upload_date, text, pos_tags
+        FROM data
+    """).df()
     return df.to_dict(orient="records")
