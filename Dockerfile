@@ -6,20 +6,11 @@ WORKDIR /app
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
-# Copy all app files and db assembly script
+# Copy FastAPI application code
 COPY app/ app/
-COPY assemble_db.sh .
-
-# Make script executable
-RUN chmod +x assemble_db.sh
-
-# Run the script during build
-RUN ./assemble_db.sh
 
 # Expose port
 EXPOSE 7860
 
-# Start FastAPI app
+# Run FastAPI app
 CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "7860"]
-
-
