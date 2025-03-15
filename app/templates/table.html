@@ -1,0 +1,81 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <title>YCSEP Search</title>
+    <style>
+      table {
+        border-collapse: collapse;
+        width: 80%;
+        margin: 1em auto;
+      }
+      th, td {
+        border: 1px solid #ccc;
+        padding: 6px;
+      }
+      .pagination {
+        text-align: center;
+      }
+      .pagination form {
+        display: inline-block;
+      }
+    </style>
+</head>
+<body>
+  <h1 style="text-align:center;">YCSEP DB Search</h1>
+
+  <div style="text-align:center;margin-bottom:1em;">
+    <form method="get" action="/">
+      <input type="text" name="q" value="{{ query }}" placeholder="Search text...">
+      <input type="submit" value="Search">
+    </form>
+  </div>
+
+  <table>
+    <thead>
+      <tr>
+        <th>ID</th>
+        <th>Speaker</th>
+        <th>Channel</th>
+        <th>VideoID</th>
+        <th>Start</th>
+        <th>End</th>
+        <th>Text</th>
+      </tr>
+    </thead>
+    <tbody>
+    {% for row in rows %}
+      <tr>
+        <td>{{ row['id'] }}</td>
+        <td>{{ row['speaker'] }}</td>
+        <td>{{ row['channel'] }}</td>
+        <td>{{ row['video_id'] }}</td>
+        <td>{{ row['start_time'] }}</td>
+        <td>{{ row['end_time'] }}</td>
+        <td>{{ row['text'] }}</td>
+      </tr>
+    {% endfor %}
+    </tbody>
+  </table>
+
+  <div class="pagination">
+    {% if page > 1 %}
+      <form method="get" style="display:inline;">
+        <input type="hidden" name="q" value="{{ query }}">
+        <input type="hidden" name="page" value="{{ page-1 }}">
+        <input type="submit" value="Prev">
+      </form>
+    {% endif %}
+
+    <span style="margin:0 1em;">Page {{ page }} of {{ total_pages }}</span>
+
+    {% if page < total_pages %}
+      <form method="get" style="display:inline;">
+        <input type="hidden" name="q" value="{{ query }}">
+        <input type="hidden" name="page" value="{{ page+1 }}">
+        <input type="submit" value="Next">
+      </form>
+    {% endif %}
+  </div>
+</body>
+</html>
