@@ -20,7 +20,8 @@ app.mount("/static", StaticFiles(directory="app/static"), name="static")
 
 @app.get("/")
 def read_index():
-    return FileResponse("app/static/index.html")
+    return FileResponse("/app/app/static/index.html")
+
 
 con = get_connection()
 
