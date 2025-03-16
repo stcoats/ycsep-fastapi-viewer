@@ -5,6 +5,7 @@ from fastapi.staticfiles import StaticFiles
 from app.duckdb_utils import get_connection
 import pandas as pd
 import io
+import re
 
 app = FastAPI()
 
@@ -15,7 +16,7 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# Serve static files from /static (including index.html)
+# Serve static files (index.html) from /static
 app.mount("/static", StaticFiles(directory="app/static"), name="static")
 
 @app.get("/")
@@ -33,40 +34,55 @@ def get_paginated_data(
     direction: str = Query("asc")
 ):
     """
-    GET /data?page=1&size=100&text=anyWords&sort=id&direction=asc
-    Returns { "total": <int>, "data": [ {id, channel, video_id, speaker, start_time, end_time, pos_tags, text}, ... ] }
+    GET /data?page=1&size=100&text=someWords&sort=id&direction=asc
 
-    We'll do substring search across 'text' OR 'pos_tags' columns.
-    Sorting can be by any of the listed columns (id, channel, speaker, etc.)
+    We do a single "word-boundary" REGEXP search across text AND pos_tags:
+      - If user typed "lor" => only matches \b lor \b
+      - If user typed "no lah" => only matches the phrase as separate tokens, e.g. \b no \s+ lah \b
+        -> won't match 'dunno lah' or 'no lahk'
+
+    Both quoted or unquoted input are treated the same here: 
+      - We remove any leading/trailing quotes if present
+      - Then replace spaces with \s+ 
+      - Then do a boundary-based search: (?i)\b...phrase...\b
+    So "no lah" => (?i)\bno\s+lah\b
+    So "lor" => (?i)\blor\b
     """
-    # Allowed columns to sort by
-    allowed_cols = [
-        "id", "channel", "video_id", "speaker",
-        "start_time", "end_time", "pos_tags", "text"
-    ]
+
+    # Allowed sort columns
+    allowed_cols = ["id", "channel", "video_id", "speaker", "start_time", "end_time", "pos_tags", "text"]
     if sort not in allowed_cols:
         sort = "id"
     if direction not in ["asc", "desc"]:
         direction = "asc"
 
-    # Build WHERE for substring search in text or pos_tags
-    safe_text = text.replace("'", "''").strip()
+    safe_text = text.strip()
+    if len(safe_text) >= 2 and safe_text.startswith('"') and safe_text.endswith('"'):
+        # If user typed quotes like "no lah"
+        safe_text = safe_text[1:-1].strip()  # remove leading/trailing quotes
+
+    # Replace all spaces with \s+ so "no lah" => "no\s+lah"
+    # This ensures multiple tokens are matched as a single phrase with space(s) in between.
+    raw_search = re.sub(r'\s+', r'\\s+', safe_text)
+
     where_clause = ""
-    if safe_text:
+    if raw_search:
+        # We'll do a boundary-based, case-insensitive regex: (?i)\braw_search\b
+        # e.g.  WHERE (text REGEXP '(?i)\bno\s+lah\b' OR pos_tags REGEXP '(?i)\bno\s+lah\b')
         where_clause = f"""
-          WHERE (
-            text ILIKE '%{safe_text}%'
-            OR pos_tags ILIKE '%{safe_text}%'
-          )
+        WHERE (
+          text REGEXP '(?i)\\\\b{raw_search}\\\\b'
+          OR pos_tags REGEXP '(?i)\\\\b{raw_search}\\\\b'
+        )
         """
 
-    # Count total matching
-    count_query = f"SELECT COUNT(*) FROM data {where_clause}"
-    total = con.execute(count_query).fetchone()[0]
+    # Count total
+    count_sql = f"SELECT COUNT(*) FROM data {where_clause}"
+    total = con.execute(count_sql).fetchone()[0]
 
     offset = (page - 1) * size
 
-    query = f"""
+    sql = f"""
     SELECT
       id, channel, video_id, speaker,
       start_time, end_time, pos_tags, text
@@ -75,18 +91,13 @@ def get_paginated_data(
     ORDER BY {sort} {direction}
     LIMIT {size} OFFSET {offset}
     """
-    df = con.execute(query).df()
+    df = con.execute(sql).df()
     data = df.to_dict(orient="records")
 
     return {"total": total, "data": data}
 
 @app.get("/audio/{id}")
 def get_audio(id: str):
-    """
-    Streams the audio BLOB for the given id.
-    If your DB uses int, do def get_audio(id: int): 
-    Then be sure to adapt your front-end to pass an integer.
-    """
     row = con.execute("SELECT audio FROM data WHERE id = ?", [id]).fetchone()
     if not row:
         raise HTTPException(status_code=404, detail="Audio not found")
