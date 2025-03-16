@@ -11,12 +11,12 @@ con = get_connection()
 def search(text: str = Query("")):
     query = text.replace("'", "''")
     df = con.execute(
-        f\"\"\"
+        f"""
         SELECT id, channel, video_id, speaker, start_time, end_time, upload_date, text, pos_tags
         FROM data
         WHERE text ILIKE '%{query}%'
         LIMIT 100
-        \"\"\"
+        """
     ).df()
     return df.to_dict(orient='records')
 
