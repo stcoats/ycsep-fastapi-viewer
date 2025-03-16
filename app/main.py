@@ -8,7 +8,6 @@ import io
 
 app = FastAPI()
 
-# CORS if you need it
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
@@ -16,12 +15,11 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# Serve our static files (including index.html) from /static
+# Serve static files from /static (including index.html)
 app.mount("/static", StaticFiles(directory="app/static"), name="static")
 
 @app.get("/")
 def serve_index():
-    # Return the HTML at /static/index.html
     return FileResponse("app/static/index.html")
 
 con = get_connection()
@@ -35,21 +33,32 @@ def get_paginated_data(
     direction: str = Query("asc")
 ):
     """
-    GET /data?page=1&size=100&text=something&sort=id&direction=asc
-    Returns { "total": <int>, "data": [ {id, channel, video_id, speaker, start_time, end_time, text}, ... ] }
+    GET /data?page=1&size=100&text=anyWords&sort=id&direction=asc
+    Returns { "total": <int>, "data": [ {id, channel, video_id, speaker, start_time, end_time, pos_tags, text}, ... ] }
+
+    We'll do substring search across 'text' OR 'pos_tags' columns.
+    Sorting can be by any of the listed columns (id, channel, speaker, etc.)
     """
-    # Validate which columns can be sorted
-    allowed_cols = ["id", "channel", "video_id", "speaker", "start_time", "end_time", "text"]
+    # Allowed columns to sort by
+    allowed_cols = [
+        "id", "channel", "video_id", "speaker",
+        "start_time", "end_time", "pos_tags", "text"
+    ]
     if sort not in allowed_cols:
         sort = "id"
     if direction not in ["asc", "desc"]:
         direction = "asc"
 
-    # Build WHERE clause for substring in text
+    # Build WHERE for substring search in text or pos_tags
     safe_text = text.replace("'", "''").strip()
     where_clause = ""
     if safe_text:
-        where_clause = f"WHERE text ILIKE '%{safe_text}%'"
+        where_clause = f"""
+          WHERE (
+            text ILIKE '%{safe_text}%'
+            OR pos_tags ILIKE '%{safe_text}%'
+          )
+        """
 
     # Count total matching
     count_query = f"SELECT COUNT(*) FROM data {where_clause}"
@@ -57,9 +66,10 @@ def get_paginated_data(
 
     offset = (page - 1) * size
 
-    # Return columns except for audio (since it's large)
     query = f"""
-    SELECT id, channel, video_id, speaker, start_time, end_time, text
+    SELECT
+      id, channel, video_id, speaker,
+      start_time, end_time, pos_tags, text
     FROM data
     {where_clause}
     ORDER BY {sort} {direction}
@@ -74,10 +84,10 @@ def get_paginated_data(
 def get_audio(id: str):
     """
     Streams the audio BLOB for the given id.
-    If your DB's 'id' is stored as an int, change to 'def get_audio(id: int):'
+    If your DB uses int, do def get_audio(id: int): 
+    Then be sure to adapt your front-end to pass an integer.
     """
     row = con.execute("SELECT audio FROM data WHERE id = ?", [id]).fetchone()
     if not row:
         raise HTTPException(status_code=404, detail="Audio not found")
-    audio_bytes = row[0]
-    return StreamingResponse(io.BytesIO(audio_bytes), media_type="audio/mpeg")
+    return StreamingResponse(io.BytesIO(row[0]), media_type="audio/mpeg")
