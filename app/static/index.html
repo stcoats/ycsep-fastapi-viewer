@@ -1,0 +1,154 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <title>YCSEP Table with Pagination + Audio</title>
+  <style>
+    body { font-family: sans-serif; margin: 16px; }
+    table {
+      border-collapse: collapse; 
+      width: 100%;
+      margin-top: 16px;
+    }
+    th, td {
+      border: 1px solid #ccc; 
+      padding: 6px; 
+      text-align: left;
+    }
+    th {
+      cursor: pointer;
+      background: #f2f2f2;
+    }
+    .pagination, .search-bar {
+      margin-top: 12px;
+    }
+    button { margin: 0 5px; }
+    .audio-cell audio { width: 150px; }
+  </style>
+</head>
+<body>
+  <h1>YCSEP DB Results</h1>
+
+  <div class="search-bar">
+    <label>Search: <input type="text" id="searchInput"></label>
+    <button onclick="doSearch()">Go</button>
+  </div>
+
+  <table id="dataTable">
+    <thead>
+      <tr>
+        <th onclick="sortBy('id')">ID</th>
+        <th onclick="sortBy('channel')">Channel</th>
+        <th onclick="sortBy('video_id')">Video ID</th>
+        <th onclick="sortBy('speaker')">Speaker</th>
+        <th onclick="sortBy('start_time')">Start</th>
+        <th onclick="sortBy('end_time')">End</th>
+        <th>Audio</th>
+        <th onclick="sortBy('text')">Text</th>
+      </tr>
+    </thead>
+    <tbody></tbody>
+  </table>
+
+  <div class="pagination" id="paginationControls"></div>
+
+  <script>
+    let currentPage = 1;
+    let totalRows = 0;
+    let pageSize = 100;
+    let currentSort = 'id';
+    let currentDirection = 'asc';
+
+    function doSearch() {
+      currentPage = 1;
+      loadData();
+    }
+
+    function sortBy(column) {
+      if (currentSort === column) {
+        // Toggle asc/desc
+        currentDirection = (currentDirection === 'asc') ? 'desc' : 'asc';
+      } else {
+        currentSort = column;
+        currentDirection = 'asc';
+      }
+      currentPage = 1;
+      loadData();
+    }
+
+    function goPage(page) {
+      currentPage = page;
+      loadData();
+    }
+
+    function loadData() {
+      const textVal = document.getElementById('searchInput').value.trim();
+
+      const url = `/data?page=${currentPage}&size=${pageSize}&text=${encodeURIComponent(textVal)}&sort=${currentSort}&direction=${currentDirection}`;
+      fetch(url)
+        .then(res => res.json())
+        .then(json => {
+          totalRows = json.total;
+          renderTable(json.data);
+          renderPagination();
+        })
+        .catch(err => {
+          console.error("Error fetching /data:", err);
+        });
+    }
+
+    function renderTable(rows) {
+      const tbody = document.querySelector("#dataTable tbody");
+      tbody.innerHTML = "";
+      rows.forEach(r => {
+        const tr = document.createElement("tr");
+        // We'll build the audio column from r.id
+        tr.innerHTML = `
+          <td>${r.id}</td>
+          <td>${r.channel}</td>
+          <td>${r.video_id}</td>
+          <td>${r.speaker}</td>
+          <td>${r.start_time}</td>
+          <td>${r.end_time}</td>
+          <td class="audio-cell">${
+            /* The /audio endpoint used to stream audio by ID. 
+               If your real ID is a string, we do /audio/${encodeURIComponent(r.id)} */
+            `<audio controls>
+              <source src="/audio/${encodeURIComponent(r.id)}" type="audio/mpeg">
+            </audio>`
+          }</td>
+          <td>${r.text}</td>
+        `;
+        tbody.appendChild(tr);
+      });
+    }
+
+    function renderPagination() {
+      const container = document.getElementById("paginationControls");
+      container.innerHTML = "";
+      const totalPages = Math.ceil(totalRows / pageSize);
+
+      // Prev
+      if (currentPage > 1) {
+        const btnPrev = document.createElement("button");
+        btnPrev.textContent = "Prev";
+        btnPrev.onclick = () => goPage(currentPage - 1);
+        container.appendChild(btnPrev);
+      }
+
+      container.appendChild(document.createTextNode(` Page ${currentPage} of ${totalPages} `));
+
+      // Next
+      if (currentPage < totalPages) {
+        const btnNext = document.createElement("button");
+        btnNext.textContent = "Next";
+        btnNext.onclick = () => goPage(currentPage + 1);
+        container.appendChild(btnNext);
+      }
+    }
+
+    // Initial load
+    loadData();
+  </script>
+</body>
+</html>
