@@ -3,13 +3,13 @@
 <head>
   <meta charset="UTF-8">
   <title>YCSEP DB Results</title>
-  <!-- Bootstrap CSS from a CDN -->
+  <!-- Bootstrap CSS from a CDN (no integrity to avoid mismatch errors) -->
   <link 
     rel="stylesheet" 
-    href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.1/dist/css/bootstrap.min.css">
-
+    href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.1/dist/css/bootstrap.min.css"
+    crossorigin="anonymous"
+  >
   <style>
-    /* Additional custom styles if needed */
     body {
       margin: 16px;
     }
@@ -17,25 +17,24 @@
       cursor: pointer;
     }
     .audio-cell audio {
-      width: 180px;
+      width: 160px;
     }
   </style>
 </head>
 <body class="container">
-  <h1 class="mt-4">YCSEP DB Results</h1>
+  <h1 class="mb-4">YCSEP DB Results</h1>
 
-  <div class="row my-3">
+  <div class="row mb-3">
     <div class="col-auto">
-      <label for="searchInput" class="form-label">Search text:</label>
-      <input type="text" id="searchInput" class="form-control" placeholder="e.g. can can">
+      <input type="text" id="searchInput" class="form-control" placeholder="Search text or pos_tags" />
     </div>
-    <div class="col-auto align-self-end">
+    <div class="col-auto">
       <button class="btn btn-primary" onclick="doSearch()">Search</button>
     </div>
   </div>
 
   <table class="table table-bordered table-striped" id="dataTable">
-    <thead>
+    <thead class="table-dark">
       <tr>
         <th onclick="sortBy('id')">ID</th>
         <th onclick="sortBy('channel')">Channel</th>
@@ -43,6 +42,7 @@
         <th onclick="sortBy('speaker')">Speaker</th>
         <th onclick="sortBy('start_time')">Start</th>
         <th onclick="sortBy('end_time')">End</th>
+        <th onclick="sortBy('pos_tags')">POS Tags</th>
         <th>Audio</th>
         <th onclick="sortBy('text')">Text</th>
       </tr>
@@ -50,7 +50,7 @@
     <tbody></tbody>
   </table>
 
-  <div class="d-flex justify-content-center my-3" id="paginationControls"></div>
+  <div id="paginationControls" class="d-flex justify-content-center my-3"></div>
 
   <script>
     let currentPage = 1;
@@ -91,9 +91,7 @@
           renderTable(json.data);
           renderPagination();
         })
-        .catch(err => {
-          console.error("Error fetching /data:", err);
-        });
+        .catch(err => console.error("Error fetching /data:", err));
     }
 
     function renderTable(rows) {
@@ -101,11 +99,8 @@
       tbody.innerHTML = "";
 
       rows.forEach(r => {
-        const tr = document.createElement("tr");
-        // Build audio column from r.id
-        // If your DB uses int, do parseInt or string, etc.
         const audioUrl = `/audio/${encodeURIComponent(r.id)}`;
-
+        const tr = document.createElement("tr");
         tr.innerHTML = `
           <td>${r.id}</td>
           <td>${r.channel}</td>
@@ -113,6 +108,7 @@
           <td>${r.speaker}</td>
           <td>${r.start_time}</td>
           <td>${r.end_time}</td>
+          <td>${r.pos_tags || ""}</td>
           <td class="audio-cell">
             <audio controls preload="none">
               <source src="${audioUrl}" type="audio/mpeg">
@@ -151,7 +147,7 @@
       }
     }
 
-    // Initial load
+    // initial load
     loadData();
   </script>
 </body>
