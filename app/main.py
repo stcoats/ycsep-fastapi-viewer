@@ -16,7 +16,7 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# Serve static files (index.html) from /static
+# Serve static files from /static (including index.html)
 app.mount("/static", StaticFiles(directory="app/static"), name="static")
 
 @app.get("/")
@@ -34,54 +34,52 @@ def get_paginated_data(
     direction: str = Query("asc")
 ):
     """
-    GET /data?page=1&size=100&text=someWords&sort=id&direction=asc
+    GET /data?page=1&size=100&text=lor&sort=id&direction=asc
+    We'll do boundary-based matching across text & pos_tags:
+      - We consider a boundary to be start/end of string or a non-alphanumeric char.
+      - So 'lor' won't match 'explore' and 'no lah' won't match 'dunno lah'.
 
-    We do a single "word-boundary" REGEXP search across text AND pos_tags:
-      - If user typed "lor" => only matches \b lor \b
-      - If user typed "no lah" => only matches the phrase as separate tokens, e.g. \b no \s+ lah \b
-        -> won't match 'dunno lah' or 'no lahk'
+    We'll do this via something like:
+      text REGEXP '(^|[^[:alnum:]])lor([^[:alnum:]]|$)' 'i'
+    If user typed multiple words 'no lah', we insert \s+ for the space, so:
+      no lah => no\s+lah => '(^|[^[:alnum:]])no\s+lah([^[:alnum:]]|$)' 'i'
 
-    Both quoted or unquoted input are treated the same here: 
-      - We remove any leading/trailing quotes if present
-      - Then replace spaces with \s+ 
-      - Then do a boundary-based search: (?i)\b...phrase...\b
-    So "no lah" => (?i)\bno\s+lah\b
-    So "lor" => (?i)\blor\b
+    Sorting can be by [id, channel, video_id, speaker, start_time, end_time, pos_tags, text].
     """
 
-    # Allowed sort columns
+    # Which columns can we sort by
     allowed_cols = ["id", "channel", "video_id", "speaker", "start_time", "end_time", "pos_tags", "text"]
     if sort not in allowed_cols:
         sort = "id"
     if direction not in ["asc", "desc"]:
         direction = "asc"
 
-    safe_text = text.strip()
-    if len(safe_text) >= 2 and safe_text.startswith('"') and safe_text.endswith('"'):
-        # If user typed quotes like "no lah"
-        safe_text = safe_text[1:-1].strip()  # remove leading/trailing quotes
-
-    # Replace all spaces with \s+ so "no lah" => "no\s+lah"
-    # This ensures multiple tokens are matched as a single phrase with space(s) in between.
-    raw_search = re.sub(r'\s+', r'\\s+', safe_text)
-
+    raw_text = text.strip()
     where_clause = ""
-    if raw_search:
-        # We'll do a boundary-based, case-insensitive regex: (?i)\braw_search\b
-        # e.g.  WHERE (text REGEXP '(?i)\bno\s+lah\b' OR pos_tags REGEXP '(?i)\bno\s+lah\b')
+
+    if raw_text:
+        # Replace spaces with \s+ so "no lah" => "no\s+lah"
+        # We'll create a pattern: (^|[^[:alnum:]])phrase([^[:alnum:]]|$)
+        # and pass 'i' as a separate argument for case-insensitive matching
+        phrase = re.sub(r'\s+', r'\\s+', raw_text)  # so no lah => no\s+lah
+        # then build the final bracket-based pattern
+        # e.g. (^|[^[:alnum:]])no\s+lah([^[:alnum:]]|$)
+        pattern = f'(^|[^[:alnum:]]){phrase}([^[:alnum:]]|$)'
+
         where_clause = f"""
         WHERE (
-          text REGEXP '(?i)\\\\b{raw_search}\\\\b'
-          OR pos_tags REGEXP '(?i)\\\\b{raw_search}\\\\b'
+          text REGEXP '{pattern}' 'i'
+          OR pos_tags REGEXP '{pattern}' 'i'
         )
         """
 
-    # Count total
+    # Count total matching
     count_sql = f"SELECT COUNT(*) FROM data {where_clause}"
     total = con.execute(count_sql).fetchone()[0]
 
     offset = (page - 1) * size
 
+    # Build final query with sorting
     sql = f"""
     SELECT
       id, channel, video_id, speaker,
@@ -98,6 +96,9 @@ def get_paginated_data(
 
 @app.get("/audio/{id}")
 def get_audio(id: str):
+    """
+    Streams the audio BLOB for the given id.
+    """
     row = con.execute("SELECT audio FROM data WHERE id = ?", [id]).fetchone()
     if not row:
         raise HTTPException(status_code=404, detail="Audio not found")
