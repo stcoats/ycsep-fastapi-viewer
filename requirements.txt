@@ -3,5 +3,5 @@ uvicorn
 pandas
 duckdb
 jinja2
-
+huggingface_hub 
 
