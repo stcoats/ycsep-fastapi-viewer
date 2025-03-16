@@ -2,39 +2,41 @@
 <html>
 <head>
   <meta charset="UTF-8">
-  <title>YCSEP Table with Pagination + Audio</title>
+  <title>YCSEP DB Results</title>
+  <!-- Bootstrap CSS from a CDN -->
+  <link 
+    rel="stylesheet" 
+    href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.1/dist/css/bootstrap.min.css" 
+    integrity="sha384-5EnBzN4prM7K75gYZOGxTxV6RKTKSIK1D3Fr1SX4CE/J5+/Au+VeQHPu0Os7D+tf" 
+    crossorigin="anonymous">
+
   <style>
-    body { font-family: sans-serif; margin: 16px; }
-    table {
-      border-collapse: collapse; 
-      width: 100%;
-      margin-top: 16px;
-    }
-    th, td {
-      border: 1px solid #ccc; 
-      padding: 6px; 
-      text-align: left;
+    /* Additional custom styles if needed */
+    body {
+      margin: 16px;
     }
     th {
       cursor: pointer;
-      background: #f2f2f2;
     }
-    .pagination, .search-bar {
-      margin-top: 12px;
+    .audio-cell audio {
+      width: 180px;
     }
-    button { margin: 0 5px; }
-    .audio-cell audio { width: 150px; }
   </style>
 </head>
-<body>
-  <h1>YCSEP DB Results</h1>
+<body class="container">
+  <h1 class="mt-4">YCSEP DB Results</h1>
 
-  <div class="search-bar">
-    <label>Search: <input type="text" id="searchInput"></label>
-    <button onclick="doSearch()">Go</button>
+  <div class="row my-3">
+    <div class="col-auto">
+      <label for="searchInput" class="form-label">Search text:</label>
+      <input type="text" id="searchInput" class="form-control" placeholder="e.g. can can">
+    </div>
+    <div class="col-auto align-self-end">
+      <button class="btn btn-primary" onclick="doSearch()">Search</button>
+    </div>
   </div>
 
-  <table id="dataTable">
+  <table class="table table-bordered table-striped" id="dataTable">
     <thead>
       <tr>
         <th onclick="sortBy('id')">ID</th>
@@ -50,7 +52,7 @@
     <tbody></tbody>
   </table>
 
-  <div class="pagination" id="paginationControls"></div>
+  <div class="d-flex justify-content-center my-3" id="paginationControls"></div>
 
   <script>
     let currentPage = 1;
@@ -66,7 +68,6 @@
 
     function sortBy(column) {
       if (currentSort === column) {
-        // Toggle asc/desc
         currentDirection = (currentDirection === 'asc') ? 'desc' : 'asc';
       } else {
         currentSort = column;
@@ -83,8 +84,8 @@
 
     function loadData() {
       const textVal = document.getElementById('searchInput').value.trim();
-
       const url = `/data?page=${currentPage}&size=${pageSize}&text=${encodeURIComponent(textVal)}&sort=${currentSort}&direction=${currentDirection}`;
+
       fetch(url)
         .then(res => res.json())
         .then(json => {
@@ -100,9 +101,13 @@
     function renderTable(rows) {
       const tbody = document.querySelector("#dataTable tbody");
       tbody.innerHTML = "";
+
       rows.forEach(r => {
         const tr = document.createElement("tr");
-        // We'll build the audio column from r.id
+        // Build audio column from r.id
+        // If your DB uses int, do parseInt or string, etc.
+        const audioUrl = `/audio/${encodeURIComponent(r.id)}`;
+
         tr.innerHTML = `
           <td>${r.id}</td>
           <td>${r.channel}</td>
@@ -110,13 +115,11 @@
           <td>${r.speaker}</td>
           <td>${r.start_time}</td>
           <td>${r.end_time}</td>
-          <td class="audio-cell">${
-            /* The /audio endpoint used to stream audio by ID. 
-               If your real ID is a string, we do /audio/${encodeURIComponent(r.id)} */
-            `<audio controls>
-              <source src="/audio/${encodeURIComponent(r.id)}" type="audio/mpeg">
-            </audio>`
-          }</td>
+          <td class="audio-cell">
+            <audio controls preload="none">
+              <source src="${audioUrl}" type="audio/mpeg">
+            </audio>
+          </td>
           <td>${r.text}</td>
         `;
         tbody.appendChild(tr);
@@ -128,19 +131,22 @@
       container.innerHTML = "";
       const totalPages = Math.ceil(totalRows / pageSize);
 
-      // Prev
       if (currentPage > 1) {
         const btnPrev = document.createElement("button");
+        btnPrev.classList.add("btn","btn-secondary","me-2");
         btnPrev.textContent = "Prev";
         btnPrev.onclick = () => goPage(currentPage - 1);
         container.appendChild(btnPrev);
       }
 
-      container.appendChild(document.createTextNode(` Page ${currentPage} of ${totalPages} `));
+      const pageInfo = document.createElement("span");
+      pageInfo.classList.add("align-self-center","mx-2");
+      pageInfo.textContent = `Page ${currentPage} of ${totalPages}`;
+      container.appendChild(pageInfo);
 
-      // Next
       if (currentPage < totalPages) {
         const btnNext = document.createElement("button");
+        btnNext.classList.add("btn","btn-secondary","ms-2");
         btnNext.textContent = "Next";
         btnNext.onclick = () => goPage(currentPage + 1);
         container.appendChild(btnNext);
