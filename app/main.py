@@ -5,6 +5,7 @@ from fastapi.staticfiles import StaticFiles
 from app.duckdb_utils import get_connection
 import pandas as pd
 import io
+import re
 
 app = FastAPI()
 
@@ -15,7 +16,6 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# Serve static files from /static (index.html)
 app.mount("/static", StaticFiles(directory="app/static"), name="static")
 
 @app.get("/")
@@ -32,31 +32,33 @@ def get_paginated_data(
     sort: str = Query("id"),
     direction: str = Query("asc")
 ):
-    # Allowable columns for sort
     allowed_cols = ["id", "channel", "video_id", "speaker", "start_time", "end_time", "pos_tags", "text"]
     if sort not in allowed_cols:
         sort = "id"
     if direction not in ["asc", "desc"]:
         direction = "asc"
 
-    safe_text = text.replace("'", "''").strip().strip('"').strip("'").strip("“").strip("”")
+    text_clean = text.strip().strip('"“”\'')  # remove quotes/smartquotes
     where_clause = ""
 
-    if safe_text:
+    if text_clean:
+        # Convert "can can" => can\s+can, then add word boundaries manually
+        phrase = re.sub(r'\s+', r'\\s+', text_clean)
+        pattern = f'(^|\\W){phrase}(\\W|$)'
+
         where_clause = f"""
-        WHERE text ILIKE '%{safe_text}%' OR pos_tags ILIKE '%{safe_text}%'
+        WHERE regexp_matches(text, '{pattern}', 'i')
+           OR regexp_matches(pos_tags, '{pattern}', 'i')
         """
 
     offset = (page - 1) * size
 
-    # Total count
     count_query = f"SELECT COUNT(*) FROM data {where_clause}"
     try:
         total = con.execute(count_query).fetchone()[0]
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Count query error: {e}")
 
-    # Fetch data
     query = f"""
     SELECT id, channel, video_id, speaker,
            start_time, end_time, pos_tags, text
