@@ -12,33 +12,43 @@
     body { margin: 16px; font-size: 0.9rem; }
     th { cursor: pointer; }
     .audio-cell audio { width: 160px; }
+    .sort-indicator { font-size: 0.7rem; color: #999; margin-left: 4px; }
   </style>
 </head>
 <body class="container">
-<div class="d-flex justify-content-between align-items-end mb-3">
-  <h1 class="h3">YCSEP DB Results</h1>
-  <small class="text-muted text-end" style="max-width: 60%;">
-    This database contains segments from YCSEP. You can search by text or POS tags, sort by any column, and play corresponding audio. Exact phrases can be matched with quotation marks.
-  </small>
-</div>
+  <div class="d-flex justify-content-between align-items-end mb-3">
+    <h1 class="h3">YCSEP DB Results</h1>
+    <small class="text-muted text-end" style="max-width: 60%;">
+      This database contains segments from YCSEP. You can search by text or POS tags, sort by any column, and play corresponding audio. Exact phrases can be matched with quotation marks.
+    </small>
+  </div>
 
-<table class="table table-bordered table-striped table-hover table-sm" id="dataTable">
-  <thead class="table-dark">
-    <tr>
-      <th onclick="sortTable('id')">ID ▲▼</th>
-      <th onclick="sortTable('channel')">Channel ▲▼</th>
-      <th onclick="sortTable('video_id')">Video ID ▲▼</th>
-      <th onclick="sortTable('speaker')">Speaker ▲▼</th>
-      <th onclick="sortTable('start_time')">Start ▲▼</th>
-      <th onclick="sortTable('end_time')">End ▲▼</th>
-      <th>Audio</th>
-      <th onclick="sortTable('text')">Text ▲▼</th>
-      <th onclick="sortTable('pos_tags')">POS ▲▼</th>
-    </tr>
-  </thead>
-  <tbody></tbody>
-</table>
+  <div class="row mb-3">
+    <div class="col-auto">
+      <label for="searchInput" class="form-label">Search text:</label>
+      <input type="text" id="searchInput" class="form-control" placeholder='e.g. "can can" or POS tag'>
+    </div>
+    <div class="col-auto align-self-end">
+      <button class="btn btn-primary" onclick="doSearch()">Search</button>
+    </div>
+  </div>
 
+  <table class="table table-bordered table-striped table-hover table-sm" id="dataTable">
+    <thead class="table-dark">
+      <tr>
+        <th onclick="sortBy('id')">ID<span class="sort-indicator">▴▾</span></th>
+        <th onclick="sortBy('channel')">Channel<span class="sort-indicator">▴▾</span></th>
+        <th onclick="sortBy('video_id')">Video ID<span class="sort-indicator">▴▾</span></th>
+        <th onclick="sortBy('speaker')">Speaker<span class="sort-indicator">▴▾</span></th>
+        <th onclick="sortBy('start_time')">Start<span class="sort-indicator">▴▾</span></th>
+        <th onclick="sortBy('end_time')">End<span class="sort-indicator">▴▾</span></th>
+        <th>Audio</th>
+        <th onclick="sortBy('text')">Text<span class="sort-indicator">▴▾</span></th>
+        <th onclick="sortBy('pos_tags')">POS<span class="sort-indicator">▴▾</span></th>
+      </tr>
+    </thead>
+    <tbody></tbody>
+  </table>
 
   <div class="d-flex justify-content-center my-3" id="paginationControls"></div>
 
@@ -71,7 +81,9 @@
     }
 
     function loadData() {
-      const textVal = document.getElementById('searchInput').value.trim();
+      const inputEl = document.getElementById('searchInput');
+      if (!inputEl) return;
+      const textVal = inputEl.value.trim();
       const url = `/data?page=${currentPage}&size=${pageSize}&text=${encodeURIComponent(textVal)}&sort=${currentSort}&direction=${currentDirection}`;
 
       fetch(url)
@@ -98,13 +110,13 @@
           <td>${r.speaker}</td>
           <td>${r.start_time}</td>
           <td>${r.end_time}</td>
-          <td>${r.pos_tags || ""}</td>
           <td class="audio-cell">
             <audio controls preload="none">
               <source src="${audioUrl}" type="audio/mpeg">
             </audio>
           </td>
           <td>${r.text}</td>
+          <td>${r.pos_tags || ""}</td>
         `;
         tbody.appendChild(tr);
       });
@@ -137,8 +149,9 @@
       }
     }
 
-    // initial load
-    loadData();
+    window.addEventListener("DOMContentLoaded", () => {
+      loadData();
+    });
   </script>
 </body>
 </html>
