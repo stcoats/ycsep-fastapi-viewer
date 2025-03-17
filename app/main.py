@@ -39,7 +39,7 @@ def get_paginated_data(
     if direction not in ["asc", "desc"]:
         direction = "asc"
 
-    safe_text = text.replace("'", "''").strip()
+    safe_text = text.replace("'", "''").strip().strip('"').strip("'").strip("“").strip("”")
     where_clause = ""
 
     if safe_text:
