@@ -5,7 +5,6 @@ from fastapi.staticfiles import StaticFiles
 from app.duckdb_utils import get_connection
 import pandas as pd
 import io
-import re
 
 app = FastAPI()
 
@@ -16,7 +15,7 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# Serve static files from /static (including index.html)
+# Serve static files from /static (index.html)
 app.mount("/static", StaticFiles(directory="app/static"), name="static")
 
 @app.get("/")
@@ -33,72 +32,48 @@ def get_paginated_data(
     sort: str = Query("id"),
     direction: str = Query("asc")
 ):
-    """
-    GET /data?page=1&size=100&text=lor&sort=id&direction=asc
-    We'll do boundary-based matching across text & pos_tags:
-      - We consider a boundary to be start/end of string or a non-alphanumeric char.
-      - So 'lor' won't match 'explore' and 'no lah' won't match 'dunno lah'.
-
-    We'll do this via something like:
-      text REGEXP '(^|[^[:alnum:]])lor([^[:alnum:]]|$)' 'i'
-    If user typed multiple words 'no lah', we insert \s+ for the space, so:
-      no lah => no\s+lah => '(^|[^[:alnum:]])no\s+lah([^[:alnum:]]|$)' 'i'
-
-    Sorting can be by [id, channel, video_id, speaker, start_time, end_time, pos_tags, text].
-    """
-
-    # Which columns can we sort by
+    # Allowable columns for sort
     allowed_cols = ["id", "channel", "video_id", "speaker", "start_time", "end_time", "pos_tags", "text"]
     if sort not in allowed_cols:
         sort = "id"
     if direction not in ["asc", "desc"]:
         direction = "asc"
 
-    raw_text = text.strip()
+    safe_text = text.replace("'", "''").strip()
     where_clause = ""
 
-    if raw_text:
-        # Replace spaces with \s+ so "no lah" => "no\s+lah"
-        # We'll create a pattern: (^|[^[:alnum:]])phrase([^[:alnum:]]|$)
-        # and pass 'i' as a separate argument for case-insensitive matching
-        phrase = re.sub(r'\s+', r'\\s+', raw_text)  # so no lah => no\s+lah
-        # then build the final bracket-based pattern
-        # e.g. (^|[^[:alnum:]])no\s+lah([^[:alnum:]]|$)
-        pattern = f'(^|[^[:alnum:]]){phrase}([^[:alnum:]]|$)'
-
+    if safe_text:
         where_clause = f"""
-        WHERE (
-          text REGEXP '{pattern}' 'i'
-          OR pos_tags REGEXP '{pattern}' 'i'
-        )
+        WHERE text ILIKE '%{safe_text}%' OR pos_tags ILIKE '%{safe_text}%'
         """
-
-    # Count total matching
-    count_sql = f"SELECT COUNT(*) FROM data {where_clause}"
-    total = con.execute(count_sql).fetchone()[0]
 
     offset = (page - 1) * size
 
-    # Build final query with sorting
-    sql = f"""
-    SELECT
-      id, channel, video_id, speaker,
-      start_time, end_time, pos_tags, text
+    # Total count
+    count_query = f"SELECT COUNT(*) FROM data {where_clause}"
+    try:
+        total = con.execute(count_query).fetchone()[0]
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Count query error: {e}")
+
+    # Fetch data
+    query = f"""
+    SELECT id, channel, video_id, speaker,
+           start_time, end_time, pos_tags, text
     FROM data
     {where_clause}
     ORDER BY {sort} {direction}
     LIMIT {size} OFFSET {offset}
     """
-    df = con.execute(sql).df()
-    data = df.to_dict(orient="records")
+    try:
+        df = con.execute(query).df()
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Data query error: {e}")
 
-    return {"total": total, "data": data}
+    return {"total": total, "data": df.to_dict(orient="records")}
 
 @app.get("/audio/{id}")
 def get_audio(id: str):
-    """
-    Streams the audio BLOB for the given id.
-    """
     row = con.execute("SELECT audio FROM data WHERE id = ?", [id]).fetchone()
     if not row:
         raise HTTPException(status_code=404, detail="Audio not found")
