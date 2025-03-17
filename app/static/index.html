@@ -15,33 +15,30 @@
   </style>
 </head>
 <body class="container">
-  <h1 class="mb-4">YCSEP DB Results</h1>
+<div class="d-flex justify-content-between align-items-end mb-3">
+  <h1 class="h3">YCSEP DB Results</h1>
+  <small class="text-muted text-end" style="max-width: 60%;">
+    This database contains segments from YCSEP. You can search by text or POS tags, sort by any column, and play corresponding audio. Exact phrases can be matched with quotation marks.
+  </small>
+</div>
 
-  <div class="row mb-3">
-    <div class="col-auto">
-      <input type="text" id="searchInput" class="form-control" placeholder='e.g. no lah or lor'>
-    </div>
-    <div class="col-auto">
-      <button class="btn btn-primary" onclick="doSearch()">Search</button>
-    </div>
-  </div>
+<table class="table table-bordered table-striped table-hover table-sm" id="dataTable">
+  <thead class="table-dark">
+    <tr>
+      <th onclick="sortTable('id')">ID ▲▼</th>
+      <th onclick="sortTable('channel')">Channel ▲▼</th>
+      <th onclick="sortTable('video_id')">Video ID ▲▼</th>
+      <th onclick="sortTable('speaker')">Speaker ▲▼</th>
+      <th onclick="sortTable('start_time')">Start ▲▼</th>
+      <th onclick="sortTable('end_time')">End ▲▼</th>
+      <th>Audio</th>
+      <th onclick="sortTable('text')">Text ▲▼</th>
+      <th onclick="sortTable('pos_tags')">POS ▲▼</th>
+    </tr>
+  </thead>
+  <tbody></tbody>
+</table>
 
-  <table class="table table-bordered table-striped" id="dataTable">
-    <thead class="table-dark">
-      <tr>
-        <th onclick="sortBy('id')">ID</th>
-        <th onclick="sortBy('channel')">Channel</th>
-        <th onclick="sortBy('video_id')">Video ID</th>
-        <th onclick="sortBy('speaker')">Speaker</th>
-        <th onclick="sortBy('start_time')">Start</th>
-        <th onclick="sortBy('end_time')">End</th>
-        <th onclick="sortBy('pos_tags')">POS Tags</th>
-        <th>Audio</th>
-        <th onclick="sortBy('text')">Text</th>
-      </tr>
-    </thead>
-    <tbody></tbody>
-  </table>
 
   <div class="d-flex justify-content-center my-3" id="paginationControls"></div>
 
