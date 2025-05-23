@@ -2,7 +2,7 @@ from fastapi import FastAPI, Query, HTTPException
 from fastapi.responses import StreamingResponse, FileResponse
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
-from app.duckdb_utils import get_connection
+#from app.duckdb_utils import get_connection
 import pandas as pd
 import io
 import re
