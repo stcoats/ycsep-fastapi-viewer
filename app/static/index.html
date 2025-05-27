@@ -20,6 +20,11 @@
   </style>
 </head>
 <body class="container">
+  <div id="fairUseBanner" class="alert alert-warning alert-dismissible fade show text-center m-0 rounded-0" role="alert" style="z-index: 1050;">
+  <strong>Notice:</strong> This site contains copyrighted material made available for purposes such as research, scholarship, and teaching according to the provisions of Directive (EU) 2019/790 on copyright and related rights in the Digital Single Market, as well as under the "Fair Use" doctrine of US copyright law (17 U.S.C. § 107). Thank you for respecting the intellectual property rights of content creators and upholding the principles of fair use.  
+  <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close" onclick="dismissBanner()"></button>
+</div>
+
   <div class="d-flex justify-content-between align-items-end mb-3">
     <h1 class="h3">YCSEP DB Results</h1>
     <small class="text-muted text-end" style="max-width: 60%;">
@@ -157,5 +162,18 @@
       loadData();
     });
   </script>
+  <script>
+  function dismissBanner() {
+    localStorage.setItem('fairUseDismissed', 'true');
+  }
+
+  window.addEventListener('DOMContentLoaded', () => {
+    if (localStorage.getItem('fairUseDismissed') === 'true') {
+      const banner = document.getElementById('fairUseBanner');
+      if (banner) banner.style.display = 'none';
+    }
+  });
+</script>
+
 </body>
 </html>
