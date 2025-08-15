@@ -54,7 +54,8 @@ def get_paginated_data(
     text_clean = text.strip().strip('"“”\'')
     if text_clean:
         # Convert spaces to \s+ and wrap in non-word boundaries; search text & pos_tags (case-insensitive)
-        phrase = re.sub(r'\s+', r'\\s+', text_clean)
+        #phrase = re.sub(r'\s+', r'\\s+', text_clean)
+        phrase = re.sub(r"'", r"''", text_clean) 
         pattern = f"(^|\\W){phrase}(\\W|$)"
         where_parts.append(f"(regexp_matches(text, '{pattern}', 'i') OR regexp_matches(pos_tags, '{pattern}', 'i'))")
 
@@ -109,7 +110,8 @@ def download_csv(
     where_parts = []
     text_clean = text.strip().strip('"“”\'')
     if text_clean:
-        phrase = re.sub(r'\s+', r'\\s+', text_clean)
+        #phrase = re.sub(r'\s+', r'\\s+', text_clean)
+        phrase = re.sub(r"'", r"''", text_clean) 
         pattern = f"(^|\\W){phrase}(\\W|$)"
         where_parts.append(f"(regexp_matches(text, '{pattern}', 'i') OR regexp_matches(pos_tags, '{pattern}', 'i'))")
 
@@ -154,7 +156,8 @@ def download_mp3zip(
     where_parts = []
     text_clean = text.strip().strip('"“”\'')
     if text_clean:
-        phrase = re.sub(r'\s+', r'\\s+', text_clean)
+        #phrase = re.sub(r'\s+', r'\\s+', text_clean)
+        phrase = re.sub(r"'", r"''", text_clean) 
         pattern = f"(^|\\W){phrase}(\\W|$)"
         where_parts.append(f"(regexp_matches(text, '{pattern}', 'i') OR regexp_matches(pos_tags, '{pattern}', 'i'))")
 
