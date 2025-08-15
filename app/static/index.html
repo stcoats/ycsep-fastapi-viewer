@@ -7,11 +7,9 @@
   <link rel="icon" type="image/png" sizes="32x32" href="/static/favicon-32x32.png">
   <link rel="icon" type="image/png" sizes="16x16" href="/static/favicon-16x16.png">
   <link rel="manifest" href="/static/site.webmanifest">
-  <link 
-    rel="stylesheet" 
-    href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.1/dist/css/bootstrap.min.css"
-    crossorigin="anonymous"
-  >
+  <link rel="stylesheet"
+        href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.1/dist/css/bootstrap.min.css"
+        crossorigin="anonymous">
   <style>
     body { margin: 16px; font-size: 0.9rem; }
     th { cursor: pointer; }
@@ -20,19 +18,21 @@
   </style>
 </head>
 <body class="container">
-  <div id="fairUseBanner" class="alert alert-warning alert-dismissible fade show text-center m-0 rounded-0" role="alert" style="z-index: 1050;">
-  <strong>Notice:</strong> This site contains copyrighted material made available for purposes such as research, scholarship, and teaching according to the provisions of the Singapore Copyright Act 2021, the Directive (EU) 2019/790 on copyright and related rights in the Digital Single Market, and Fair Use doctrine of US copyright law (17 U.S.C. § 107). Thank you for respecting the intellectual property rights of content creators and upholding the principles of fair use.  
-  <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
-</div>
+
+  <!-- Fair Use / Usage notice (always shown; dismissable) -->
+  <div class="alert alert-warning alert-dismissible fade show text-center m-0 rounded-0" role="alert" style="z-index:1050;">
+    <strong>Notice:</strong> This site contains copyrighted material made available for research, scholarship, and teaching under applicable laws (e.g., Singapore Copyright Act 2021; EU Directive 2019/790; U.S. 17 U.S.C. §107).
+    <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+  </div>
 
   <div class="d-flex justify-content-between align-items-end mb-3">
     <h1 class="h3">YCSEP DB Results</h1>
     <small class="text-muted text-end" style="max-width: 60%;">
-      This database contains segments from the <i>YouTube Corpus of Singapore English Podcasts</i>. You can search by text or POS tags, sort by any column, and play corresponding audio. For more information about the database, see Coats, Steven, Alessandro Basile, Cameron Morin, and Robert Fuchs. (Forthcoming). The YouTube Corpus of Singapore English Podcasts. <i>English World-Wide</i>  
+      Segments from the <i>YouTube Corpus of Singapore English Podcasts</i>. Search by text or POS tags, sort by any column, and play audio.
     </small>
   </div>
 
-  <div class="row mb-3">
+  <div class="row mb-2">
     <div class="col-auto">
       <label for="searchInput" class="form-label">Search text:</label>
       <input type="text" id="searchInput" class="form-control" placeholder='Search text or POS tags (e.g. can can or "pos tag")'>
@@ -41,6 +41,20 @@
       <button class="btn btn-primary" onclick="doSearch()">Search</button>
     </div>
   </div>
+
+  <!-- Filter by Channel -->
+  <div class="mb-2">
+    <strong>Filter by Channel:</strong>
+    <div id="channelCheckboxes" class="d-flex flex-wrap gap-3 mt-2"></div>
+  </div>
+
+  <!-- Download buttons (current page) -->
+  <div class="mb-3 d-flex gap-2">
+    <a id="csvBtn" href="#" class="btn btn-outline-success btn-sm d-none">Download CSV (Page)</a>
+    <a id="mp3Btn" href="#" class="btn btn-outline-primary btn-sm d-none">Download MP3s (Page)</a>
+  </div>
+
+  <div class="mb-2 text-muted" id="hitCount">Loading results...</div>
 
   <table class="table table-bordered table-striped table-hover table-sm" id="dataTable">
     <thead class="table-dark">
@@ -68,6 +82,11 @@
     let currentSort = 'id';
     let currentDirection = 'asc';
 
+    function getSelectedChannels() {
+      const boxes = document.querySelectorAll('#channelCheckboxes input[type=checkbox]:checked');
+      return Array.from(boxes).map(cb => cb.value);
+    }
+
     function doSearch() {
       currentPage = 1;
       loadData();
@@ -85,15 +104,23 @@
     }
 
     function goPage(page) {
+      if (page < 1) return;
+      const totalPages = Math.ceil(totalRows / pageSize);
+      if (page > totalPages) return;
       currentPage = page;
       loadData();
     }
 
     function loadData() {
       const inputEl = document.getElementById('searchInput');
-      if (!inputEl) return;
       const textVal = inputEl.value.trim();
-      const url = `/data?page=${currentPage}&size=${pageSize}&text=${encodeURIComponent(textVal)}&sort=${currentSort}&direction=${currentDirection}`;
+      const selected = getSelectedChannels();
+      const channelsParam = encodeURIComponent(selected.join(','));
+
+      const url = `/data?page=${currentPage}&size=${pageSize}` +
+                  `&text=${encodeURIComponent(textVal)}` +
+                  `&sort=${currentSort}&direction=${currentDirection}` +
+                  `&channels=${channelsParam}`;
 
       fetch(url)
         .then(res => res.json())
@@ -101,79 +128,115 @@
           totalRows = json.total;
           renderTable(json.data);
           renderPagination();
+          renderHitCount();
+          updateDownloadLinks(textVal, channelsParam);
         })
-        .catch(err => console.error("Error fetching /data:", err));
+        .catch(err => console.error('Error fetching /data:', err));
+    }
+
+    function updateDownloadLinks(textVal, channelsParam) {
+      const csvBtn = document.getElementById('csvBtn');
+      const mp3Btn = document.getElementById('mp3Btn');
+      csvBtn.href = `/download/csv?page=${currentPage}&size=${pageSize}` +
+                    `&text=${encodeURIComponent(textVal)}` +
+                    `&channels=${channelsParam}`;
+      mp3Btn.href = `/download/mp3zip?page=${currentPage}&size=${pageSize}` +
+                    `&text=${encodeURIComponent(textVal)}` +
+                    `&channels=${channelsParam}`;
+      csvBtn.classList.remove('d-none');
+      mp3Btn.classList.remove('d-none');
     }
 
     function renderTable(rows) {
-      const tbody = document.querySelector("#dataTable tbody");
-      tbody.innerHTML = "";
-
+      const tbody = document.querySelector('#dataTable tbody');
+      tbody.innerHTML = '';
       rows.forEach(r => {
         const audioUrl = `/audio/${encodeURIComponent(r.id)}`;
-        const tr = document.createElement("tr");
+        const tr = document.createElement('tr');
         tr.innerHTML = `
           <td>${r.id}</td>
-          <td>${r.channel}</td>
-          <td>${r.video_id}</td>
-          <td>${r.speaker}</td>
-          <td>${r.start_time}</td>
-          <td>${r.end_time}</td>
+          <td>${r.channel || ''}</td>
+          <td>${r.video_id || ''}</td>
+          <td>${r.speaker || ''}</td>
+          <td>${r.start_time || ''}</td>
+          <td>${r.end_time || ''}</td>
           <td class="audio-cell">
             <audio controls preload="none">
               <source src="${audioUrl}" type="audio/mpeg">
             </audio>
           </td>
-          <td>${r.text}</td>
-          <td>${r.pos_tags || ""}</td>
+          <td>${r.text || ''}</td>
+          <td>${r.pos_tags || ''}</td>
         `;
         tbody.appendChild(tr);
       });
     }
 
     function renderPagination() {
-      const container = document.getElementById("paginationControls");
-      container.innerHTML = "";
+      const container = document.getElementById('paginationControls');
+      container.innerHTML = '';
       const totalPages = Math.ceil(totalRows / pageSize);
+      if (totalPages <= 1) return;
+
+      const makeBtn = (label, targetPage) => {
+        const btn = document.createElement('button');
+        btn.classList.add('btn', 'btn-sm', 'btn-secondary', 'mx-1');
+        btn.textContent = label;
+        btn.onclick = () => goPage(targetPage);
+        return btn;
+      };
 
       if (currentPage > 1) {
-        const btnPrev = document.createElement("button");
-        btnPrev.classList.add("btn","btn-secondary","me-2");
-        btnPrev.textContent = "Prev";
-        btnPrev.onclick = () => goPage(currentPage - 1);
-        container.appendChild(btnPrev);
+        container.appendChild(makeBtn('« First', 1));
+        container.appendChild(makeBtn('‹ Prev', currentPage - 1));
       }
 
-      const pageInfo = document.createElement("span");
-      pageInfo.classList.add("align-self-center","mx-2");
-      pageInfo.textContent = `Page ${currentPage} of ${totalPages}`;
-      container.appendChild(pageInfo);
+      const info = document.createElement('span');
+      info.classList.add('mx-3', 'align-self-center');
+      info.textContent = `Page ${currentPage} of ${totalPages}`;
+      container.appendChild(info);
 
       if (currentPage < totalPages) {
-        const btnNext = document.createElement("button");
-        btnNext.classList.add("btn","btn-secondary","ms-2");
-        btnNext.textContent = "Next";
-        btnNext.onclick = () => goPage(currentPage + 1);
-        container.appendChild(btnNext);
+        container.appendChild(makeBtn('Next ›', currentPage + 1));
+        container.appendChild(makeBtn('Last »', totalPages));
       }
     }
 
-    window.addEventListener("DOMContentLoaded", () => {
+    function renderHitCount() {
+      const counter = document.getElementById('hitCount');
+      counter.textContent = `${totalRows} results found.`;
+    }
+
+    function loadChannels() {
+      fetch('/channels')
+        .then(res => res.json())
+        .then(channels => {
+          const container = document.getElementById('channelCheckboxes');
+          container.innerHTML = '';
+          channels.forEach(c => {
+            const label = document.createElement('label');
+            label.classList.add('form-check', 'me-3');
+            const checkbox = document.createElement('input');
+            checkbox.type = 'checkbox';
+            checkbox.classList.add('form-check-input', 'me-1');
+            checkbox.value = c;
+            checkbox.checked = true;
+            checkbox.addEventListener('change', doSearch);
+            label.appendChild(checkbox);
+            label.appendChild(document.createTextNode(c));
+            container.appendChild(label);
+          });
+        })
+        .catch(err => console.error('Failed to load channels:', err));
+    }
+
+    window.addEventListener('DOMContentLoaded', () => {
+      loadChannels();
       loadData();
+      document.getElementById('searchInput').addEventListener('keydown', e => {
+        if (e.key === 'Enter') doSearch();
+      });
     });
   </script>
-  <script>
-  function dismissBanner() {
-    localStorage.setItem('fairUseDismissed', 'true');
-  }
-
-  window.addEventListener('DOMContentLoaded', () => {
-    if (localStorage.getItem('fairUseDismissed') === 'true') {
-      const banner = document.getElementById('fairUseBanner');
-      if (banner) banner.style.display = 'none';
-    }
-  });
-</script>
-
 </body>
 </html>
